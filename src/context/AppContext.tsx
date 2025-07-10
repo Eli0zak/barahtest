@@ -23,6 +23,7 @@ interface AppContextType {
   addTask: (task: Omit<Task, 'id' | 'creationDate'>) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
   addUser: (user: Omit<User, 'id' | 'createdAt' | 'lastLoginDate'>) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
   generateDailyReport: (salesRepId: string, date: Date, notes?: string) => Promise<void>;
   loadData: () => Promise<void>;
 }
@@ -82,6 +83,8 @@ function appReducer(state: AppState, action: any): AppState {
       };
     case 'ADD_USER':
       return { ...state, users: [...state.users, action.payload] };
+    case 'REMOVE_USER':
+      return { ...state, users: state.users.filter(user => user.id !== action.payload) };
     case 'ADD_DAILY_REPORT':
       return { ...state, dailyReports: [...state.dailyReports, action.payload] };
     default:
@@ -199,6 +202,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
+
 
   // Initialize data on app start
   useEffect(() => {
@@ -514,50 +518,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-const generateDailyReport = async (salesRepId: string, date: Date, notes: string = '') => {
+  const deleteUser = async (userId: string) => {
     try {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      dispatch({ type: 'SET_LOADING', payload: true });
 
-      const newCustomersCount = state.customers.filter(
-        c => c.assignedSalesRepId === salesRepId && 
-             c.firstContactDate >= startOfDay && 
-             c.firstContactDate <= endOfDay
-      ).length;
-
-      const completedDeals = state.deals.filter(
-        d => d.salesRepresentativeId === salesRepId && 
-             d.status === 'completed' && 
-             d.lastUpdateDate >= startOfDay && 
-             d.lastUpdateDate <= endOfDay
-      );
-
-      const totalRevenue = completedDeals.reduce((sum, deal) => sum + deal.dealValue, 0);
-
-      const { data, error } = await supabase
-        .from('daily_reports')
-        .insert({
-          report_date: date.toISOString().split('T')[0],
-          sales_representative_id: salesRepId,
-          new_customers_count: newCustomersCount,
-          completed_deals_count: completedDeals.length,
-          total_revenue_from_completed_deals: totalRevenue,
-          daily_notes: notes,
-        })
-        .select()
-        .single();
-
+      // Delete daily reports
+      let { error } = await supabase.from('daily_reports').delete().eq('sales_representative_id', userId);
       if (error) throw error;
 
-      const newReport = convertDbToApp.dailyReport(data);
-      dispatch({ type: 'ADD_DAILY_REPORT', payload: newReport });
+      // Delete tasks assigned to or created by user
+      ({ error } = await supabase.from('tasks').delete().or(`assigned_to_user_id.eq.${userId},created_by_user_id.eq.${userId}`));
+      if (error) throw error;
+
+      // Delete activities recorded by user
+      ({ error } = await supabase.from('activities').delete().eq('recorded_by_user_id', userId));
+      if (error) throw error;
+
+      // Delete deals where user is sales representative
+      ({ error } = await supabase.from('deals').delete().eq('sales_representative_id', userId));
+      if (error) throw error;
+
+      // Delete customers created by or assigned to user
+      ({ error } = await supabase.from('customers').delete().or(`created_by_user_id.eq.${userId},assigned_sales_rep_id.eq.${userId}`));
+      if (error) throw error;
+
+      // Delete user
+      ({ error } = await supabase.from('users').delete().eq('id', userId));
+      if (error) throw error;
+
+      // Update state
+      dispatch({ type: 'REMOVE_USER', payload: userId });
+
+      // Reload data to refresh other related state
+      await loadData();
+
+      dispatch({ type: 'SET_ERROR', payload: null });
     } catch (error) {
-      console.error('Error generating daily report:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'خطأ في إنشاء التقرير اليومي' });
+      console.error('Error deleting user:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'خطأ في حذف المستخدم' });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
+
+  // Initialize data on app start
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const value: AppContextType = {
     state,
@@ -573,6 +580,7 @@ const generateDailyReport = async (salesRepId: string, date: Date, notes: string
     addTask,
     completeTask,
     addUser,
+    deleteUser,
     generateDailyReport,
     loadData,
   };

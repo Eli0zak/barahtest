@@ -22,104 +22,6 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
     reminderDate: '',
   });
   const [errors, setErrors] = useState<Partial<CustomerFormType>>({});
-@@ ... @@
-  useEffect(() => {
-    if (customer) {
-      setFormData({
-        name: customer.name,
-        phoneNumber: customer.phoneNumber,
-        customerStatus: customer.customerStatus,
-      });
-    }
-  }, [customer]);
-import React, { useState, useEffect } from 'react';
-import { Save, X, Plus } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
-import { CustomerForm as CustomerFormType, formatDate } from '../../types';
-
-interface CustomerFormProps {
-  customerId?: string;
-  onClose: () => void;
-  onSave: () => void;
-}
-
-export const CustomerForm: React.FC<CustomerFormProps> = ({ 
-  customerId, 
-  onClose, 
-  onSave 
-}) => {
-  const { state, addCustomer, updateCustomer } = useApp();
-  useEffect(() => {
-    if (customer) {
-      setFormData({
-        name: customer.name,
-        phoneNumber: customer.phoneNumber,
-        customerStatus: customer.customerStatus,
-        reminderDate: customer.reminderDate ? customer.reminderDate.toISOString().split('T')[0] : '',
-      });
-    }
-  }, [customer]);
-@@ ... @@
-        <div>
-          <label htmlFor="customerStatus" className="block text-sm font-medium text-gray-700 mb-2">
-            حالة العميل *
-          </label>
-          <select
-            id="customerStatus"
-            value={formData.customerStatus || 'new_client'}
-            onChange={(e) => handleChange('customerStatus', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="new_client">عميل جديد</option>
-            <option value="follow_up">متابعة</option>
-            <option value="completed">مكتمل</option>
-          </select>
-        </div>
-import React, { useState, useEffect } from 'react';
-import { Save, X, Plus } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
-import { CustomerForm as CustomerFormType, formatDate } from '../../types';
-
-interface CustomerFormProps {
-  customerId?: string;
-  onClose: () => void;
-  onSave: () => void;
-}
-
-export const CustomerForm: React.FC<CustomerFormProps> = ({ 
-  customerId, 
-  onClose, 
-  onSave 
-}) => {
-  const { state, addCustomer, updateCustomer } = useApp();
-        <div>
-          <label htmlFor="customerStatus" className="block text-sm font-medium text-gray-700 mb-2">
-            حالة العميل *
-          </label>
-          <select
-            id="customerStatus"
-            value={formData.customerStatus || 'new_client'}
-            onChange={(e) => handleChange('customerStatus', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="new_client">عميل جديد</option>
-            <option value="follow_up">متابعة</option>
-            <option value="completed">مكتمل</option>
-          </select>
-        </div>
-        
-        <div>
-          <label htmlFor="reminderDate" className="block text-sm font-medium text-gray-700 mb-2 mt-4">
-            تاريخ التذكير
-          </label>
-          <input
-            type="date"
-            id="reminderDate"
-            value={formData.reminderDate || ''}
-            onChange={(e) => handleChange('reminderDate', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
 
   const customer = customerId ? state.customers.find(c => c.id === customerId) : null;
   const isEditing = !!customerId;
@@ -130,6 +32,7 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
         name: customer.name,
         phoneNumber: customer.phoneNumber,
         customerStatus: customer.customerStatus,
+        reminderDate: customer.reminderDate ? customer.reminderDate.toISOString().split('T')[0] : '',
       });
     }
   }, [customer]);
