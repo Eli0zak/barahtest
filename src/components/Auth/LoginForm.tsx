@@ -97,7 +97,7 @@ export const LoginForm: React.FC = () => {
           <h3 className="text-sm font-medium text-gray-900 mb-3">حسابات تجريبية:</h3>
           <div className="space-y-2 text-xs text-gray-600">
             <div>
-              <strong>مدير النظام:</strong> moataz / 123456789
+              <strong>مدير النظام:</strong> moatazaky / 123456789
             </div>
             <div>
               <strong>مسؤول المبيعات:</strong> manager1 / password
