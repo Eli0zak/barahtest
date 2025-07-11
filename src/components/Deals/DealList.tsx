@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, DollarSign, Calendar, User, Edit } from 'lucide-react';
+import { Plus, Search, DollarSign, Calendar, User, Edit, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { DealFilters, formatCurrency, formatShortDate } from '../../types';
 
@@ -12,7 +12,7 @@ export const DealList: React.FC<DealListProps> = ({
   onDealSelect, 
   onAddDeal 
 }) => {
-  const { state } = useApp();
+  const { state, deleteDeal } = useApp();
   const [filters, setFilters] = useState<DealFilters>({
     search: '',
     status: '',
@@ -21,6 +21,12 @@ export const DealList: React.FC<DealListProps> = ({
   });
 
   const { deals, customers, users, currentUser } = state;
+
+  const handleDeleteDeal = async (dealId: string) => {
+    if (window.confirm(`هل أنت متأكد من رغبتك في حذف هذه الصفقة؟ سيتم حذف جميع الأنشطة والمهام المرتبطة بها.`)) {
+      await deleteDeal(dealId);
+    }
+  };
 
   const statusLabels = {
     'follow_up_1': 'متابعة 1',
@@ -44,10 +50,6 @@ export const DealList: React.FC<DealListProps> = ({
   const getFilteredDeals = () => {
     let filteredDeals = deals;
 
-    // Role-based filtering
-    if (currentUser?.role === 'sales_representative') {
-      filteredDeals = filteredDeals.filter(d => d.salesRepresentativeId === currentUser.id);
-    }
 
     // Search filter
     if (filters.search) {
@@ -182,6 +184,9 @@ export const DealList: React.FC<DealListProps> = ({
                   تاريخ الإنشاء
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                  آخر تحديث
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                   الإجراءات
                 </th>
               </tr>
@@ -231,13 +236,31 @@ export const DealList: React.FC<DealListProps> = ({
                       {formatShortDate(deal.creationDate)}
                     </div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center text-sm text-gray-900">
+                      <Calendar className="h-4 w-4 ml-2" />
+                      {formatShortDate(deal.lastUpdateDate)}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => onDealSelect(deal.id)}
-                      className="text-blue-600 hover:text-blue-900 ml-4"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => onDealSelect(deal.id)}
+                        className="p-1 text-blue-600 hover:text-blue-900 hover:bg-gray-100 rounded-full"
+                        title="تعديل"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      {(currentUser?.role === 'sales_manager' || currentUser?.role === 'administrator') && (
+                        <button
+                          onClick={() => handleDeleteDeal(deal.id)}
+                          className="p-1 text-red-600 hover:text-red-900 hover:bg-gray-100 rounded-full"
+                          title="حذف"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

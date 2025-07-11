@@ -17,8 +17,10 @@ interface AppContextType {
   }) => Promise<boolean>;
   addCustomer: (customer: Omit<Customer, 'id' | 'firstContactDate' | 'lastUpdateDate'>) => Promise<Customer | null>;
   updateCustomer: (id: string, updates: Partial<Customer>) => Promise<void>;
+  deleteCustomer: (customerId: string) => Promise<void>;
   addDeal: (deal: Omit<Deal, 'id' | 'creationDate' | 'lastUpdateDate'>) => Promise<void>;
   updateDeal: (id: string, updates: Partial<Deal>) => Promise<void>;
+  deleteDeal: (dealId: string) => Promise<void>;
   addActivity: (activity: Omit<Activity, 'id' | 'activityDate'>) => Promise<void>;
   addTask: (task: Omit<Task, 'id' | 'creationDate'>) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
@@ -61,6 +63,11 @@ function appReducer(state: AppState, action: any): AppState {
           customer.id === action.payload.id ? { ...customer, ...action.payload.updates } : customer
         ),
       };
+    case 'REMOVE_CUSTOMER':
+      return {
+        ...state,
+        customers: state.customers.filter(c => c.id !== action.payload),
+      };
     case 'ADD_DEAL':
       return { ...state, deals: [...state.deals, action.payload] };
     case 'UPDATE_DEAL':
@@ -69,6 +76,11 @@ function appReducer(state: AppState, action: any): AppState {
         deals: state.deals.map(deal =>
           deal.id === action.payload.id ? { ...deal, ...action.payload.updates } : deal
         ),
+      };
+    case 'REMOVE_DEAL':
+      return {
+        ...state,
+        deals: state.deals.filter(d => d.id !== action.payload),
       };
     case 'ADD_ACTIVITY':
       return { ...state, activities: [...state.activities, action.payload] };
@@ -365,6 +377,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const deleteCustomer = async (customerId: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      // Cascade delete: tasks, activities, deals, then customer
+      let { error } = await supabase.from('tasks').delete().eq('customer_id', customerId);
+      if (error) throw error;
+      ({ error } = await supabase.from('activities').delete().eq('customer_id', customerId));
+      if (error) throw error;
+      ({ error } = await supabase.from('deals').delete().eq('customer_id', customerId));
+      if (error) throw error;
+      ({ error } = await supabase.from('customers').delete().eq('id', customerId));
+      if (error) throw error;
+
+      // Reload data to reflect changes everywhere
+      await loadData();
+      dispatch({ type: 'SET_ERROR', payload: null });
+
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'خطأ في حذف العميل' });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
   const addDeal = async (dealData: Omit<Deal, 'id' | 'creationDate' | 'lastUpdateDate'>) => {
     try {
       const { data, error } = await supabase
@@ -414,6 +452,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Error updating deal:', error);
       dispatch({ type: 'SET_ERROR', payload: 'خطأ في تحديث الصفقة' });
+    }
+  };
+
+  const deleteDeal = async (dealId: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      // Cascade delete: tasks, activities, then deal
+      let { error } = await supabase.from('tasks').delete().eq('deal_id', dealId);
+      if (error) throw error;
+      ({ error } = await supabase.from('activities').delete().eq('deal_id', dealId));
+      if (error) throw error;
+      ({ error } = await supabase.from('deals').delete().eq('id', dealId));
+      if (error) throw error;
+      
+      // Reload data to reflect changes everywhere
+      await loadData();
+      dispatch({ type: 'SET_ERROR', payload: null });
+
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'خطأ في حذف الصفقة' });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
@@ -561,6 +623,67 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const generateDailyReport = async (salesRepId: string, date: Date, notes?: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // 1. New customers count
+      const { count: newCustomersCount, error: customersError } = await supabase
+        .from('customers')
+        .select('*', { count: 'exact', head: true })
+        .eq('assigned_sales_rep_id', salesRepId)
+        .gte('first_contact_date', startOfDay.toISOString())
+        .lte('first_contact_date', endOfDay.toISOString());
+
+      if (customersError) throw customersError;
+
+      // 2. Completed deals and revenue
+      const { data: dealsData, error: dealsError } = await supabase
+        .from('deals')
+        .select('deal_value')
+        .eq('sales_representative_id', salesRepId)
+        .eq('status', 'completed')
+        .gte('last_update_date', startOfDay.toISOString())
+        .lte('last_update_date', endOfDay.toISOString());
+
+      if (dealsError) throw dealsError;
+
+      const completedDealsCount = dealsData?.length || 0;
+      const totalRevenueFromCompletedDeals = dealsData?.reduce((sum, deal) => sum + (deal.deal_value || 0), 0) || 0;
+
+      // 3. Insert new daily report
+      const { data: reportData, error: reportError } = await supabase
+        .from('daily_reports')
+        .insert({
+          report_date: date.toISOString(),
+          sales_representative_id: salesRepId,
+          new_customers_count: newCustomersCount || 0,
+          completed_deals_count: completedDealsCount,
+          total_revenue_from_completed_deals: totalRevenueFromCompletedDeals,
+          daily_notes: notes,
+        })
+        .select()
+        .single();
+      
+      if (reportError) throw reportError;
+
+      const newReport = convertDbToApp.dailyReport(reportData);
+      dispatch({ type: 'ADD_DAILY_REPORT', payload: newReport });
+      dispatch({ type: 'SET_ERROR', payload: null });
+
+    } catch (error) {
+      console.error('Error generating daily report:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'خطأ في إنشاء التقرير اليومي' });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
   // Initialize data on app start
   useEffect(() => {
     loadData();
@@ -574,8 +697,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     signup,
     addCustomer,
     updateCustomer,
+    deleteCustomer,
     addDeal,
     updateDeal,
+    deleteDeal,
     addActivity,
     addTask,
     completeTask,

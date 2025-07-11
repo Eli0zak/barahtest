@@ -87,7 +87,7 @@ export const DealForm: React.FC<DealFormProps> = ({
       newErrors.dealDetails = 'تفاصيل الصفقة مطلوبة';
     }
 
-    if (formData.dealValue <= 0) {
+    if (formData.dealValue = 0) {
       newErrors.dealValue = 'قيمة الصفقة يجب أن تكون أكبر من صفر';
     }
 

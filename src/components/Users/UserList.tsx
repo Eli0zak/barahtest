@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, User, Edit, UserCheck, UserX } from 'lucide-react';
+import { Plus, User, Edit, UserCheck, UserX, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { formatShortDate } from '../../types';
 
 export const UserList: React.FC = () => {
-  const { state, addUser } = useApp();
+  const { state, addUser, deleteUser } = useApp();
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -15,6 +15,12 @@ export const UserList: React.FC = () => {
   });
 
   const { users, currentUser } = state;
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (window.confirm(`هل أنت متأكد من رغبتك في حذف المستخدم "${userName}"؟ سيتم حذف جميع البيانات المرتبطة به.`)) {
+      await deleteUser(userId);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,9 +172,23 @@ export const UserList: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 ml-4">
-                      <Edit className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button 
+                        className="p-1 text-blue-600 hover:text-blue-900 hover:bg-gray-100 rounded-full"
+                        title="تعديل"
+                        >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      {(currentUser?.role === 'sales_manager' || currentUser?.role === 'administrator') && user.id !== currentUser.id && (
+                        <button
+                          onClick={() => handleDeleteUser(user.id, user.name)}
+                          className="p-1 text-red-600 hover:text-red-900 hover:bg-gray-100 rounded-full"
+                          title="حذف"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

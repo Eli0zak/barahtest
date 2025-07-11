@@ -59,11 +59,17 @@ export const CustomerForm: React.FC<CustomerFormProps> = ({
     
     if (!validateForm()) return;
 
+    const dataPayload = {
+      ...formData,
+      reminderDate: formData.reminderDate ? new Date(formData.reminderDate) : undefined,
+    };
+
     if (isEditing && customerId) {
-      updateCustomer(customerId, formData);
+      updateCustomer(customerId, dataPayload);
     } else {
       addCustomer({
-        ...formData,
+        ...dataPayload,
+        customerStatus: dataPayload.customerStatus || 'new_client',
         createdByUserId: state.currentUser?.id || '',
         assignedSalesRepId: state.currentUser?.id || '',
       });

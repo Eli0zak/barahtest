@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Phone, Calendar, User, Edit } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, User, Edit, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { CustomerFilters, formatShortDate } from '../../types';
 
@@ -12,7 +12,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   onCustomerSelect, 
   onAddCustomer 
 }) => {
-  const { state } = useApp();
+  const { state, deleteCustomer } = useApp();
   const [filters, setFilters] = useState<CustomerFilters>({
     search: '',
     assignedSalesRep: '',
@@ -21,14 +21,16 @@ export const CustomerList: React.FC<CustomerListProps> = ({
 
   const { customers, deals, users, currentUser } = state;
 
+  const handleDeleteCustomer = async (customerId: string, customerName: string) => {
+    if (window.confirm(`هل أنت متأكد من رغبتك في حذف العميل "${customerName}"؟ سيتم حذف جميع الصفقات والأنشطة والمهام المرتبطة به.`)) {
+      await deleteCustomer(customerId);
+    }
+  };
+
   // Filter customers based on user role
   const getFilteredCustomers = () => {
     let filteredCustomers = customers;
 
-    // Role-based filtering
-    if (currentUser?.role === 'sales_representative') {
-      filteredCustomers = filteredCustomers.filter(c => c.assignedSalesRepId === currentUser.id);
-    }
 
     // Search filter
     if (filters.search) {
@@ -226,12 +228,24 @@ export const CustomerList: React.FC<CustomerListProps> = ({
                     </td>
                   )}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => onCustomerSelect(customer.id)}
-                      className="text-blue-600 hover:text-blue-900 ml-4"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => onCustomerSelect(customer.id)}
+                        className="p-1 text-blue-600 hover:text-blue-900 hover:bg-gray-100 rounded-full"
+                        title="تعديل"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      {(currentUser?.role === 'sales_manager' || currentUser?.role === 'administrator') && (
+                        <button
+                          onClick={() => handleDeleteCustomer(customer.id, customer.name)}
+                          className="p-1 text-red-600 hover:text-red-900 hover:bg-gray-100 rounded-full"
+                          title="حذف"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
